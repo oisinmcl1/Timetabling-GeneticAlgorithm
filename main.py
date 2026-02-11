@@ -7,6 +7,8 @@ Ciaran Gray - 22427722
 import sys
 import random
 from typing import List, Tuple
+import matplotlib.pyplot as plt
+from collections import Counter
 
 
 def read_instance(filename: str) -> Tuple[int, int, int, List[List[int]]]:
@@ -278,6 +280,72 @@ def run_ga(num_exams: int,
 
     return best_solution, best_fitness, history
 
+
+def plot_fitness_history(history: List[int], title: str = "Genetic Algorithm Fitness Evolution") -> None:
+    """
+    Plots the fitness evolution over generations.
+    :param history: List of best fitness values for each generation
+    :param title: Title for the plot
+    """
+    plt.figure(figsize=(10, 6))
+    plt.plot(history, linewidth=2, color='blue')
+    plt.title(title)
+    plt.xlabel('Generation')
+    plt.ylabel('Fitness')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_detailed_analysis(history: List[int],
+                         best_solution: List[int],
+                         instance_name: str) -> None:
+    """
+    Plots detailed analysis including fitness evolution and solution statistics.
+    :param history: List of best fitness values for each generation
+    :param best_solution: The best solution found
+    :param student_exams: Student exam assignments for computing violations
+    :param instance_name: Name of the instance being solved
+    """
+
+    # Plot 1: Fitness evolution
+    plt.figure(figsize=(10, 6))
+    plt.plot(history, linewidth=2, color='blue')
+    plt.title(f'Fitness Evolution - {instance_name}')
+    plt.xlabel('Generation')
+    plt.ylabel('Fitness')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+    # Plot 2: Solution distribution (timeslot usage)
+    plt.figure(figsize=(10, 6))
+    slot_counts = Counter(best_solution)
+    slots = list(slot_counts.keys())
+    counts = list(slot_counts.values())
+
+    plt.bar(slots, counts, color='lightcoral', alpha=0.7)
+    plt.title(f'Timeslot Usage Distribution - {instance_name}')
+    plt.xlabel('Timeslot')
+    plt.ylabel('Number of Exams')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
+
+    # Plot 3: Convergence analysis (last 50% of generations)
+    plt.figure(figsize=(10, 6))
+    mid_point = len(history) // 2
+    if mid_point > 0:
+        convergence_data = history[mid_point:]
+        plt.plot(range(mid_point, len(history)), convergence_data, linewidth=2, color='green')
+        plt.title(f'Convergence Analysis (Last 50%) - {instance_name}')
+        plt.xlabel('Generation')
+        plt.ylabel('Fitness')
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.show()
+
+
 if __name__ == "__main__":
     # instance = "test_case1.txt"
     instance = "small-2.txt"
@@ -344,3 +412,7 @@ if __name__ == "__main__":
     hard_v, soft_p = compute_violations(best_solution, student_exams)
     print(f"Hard violations: {hard_v}, Soft penalty: {soft_p}")
     print("Fitness history (last 10):", history[-10:])
+
+    # Plot the results
+    plot_fitness_history(history, f"GA Fitness Evolution - {instance}")
+    plot_detailed_analysis(history, best_solution, instance)
