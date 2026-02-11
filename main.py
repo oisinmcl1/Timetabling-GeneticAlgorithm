@@ -1,5 +1,4 @@
 import sys
-import argparse
 import random
 from typing import List, Tuple
 
@@ -49,15 +48,8 @@ def read_instance(filename: str) -> Tuple[int, int, int, List[List[int]]]:
 
 
 
-def parse_args():
-    p = argparse.ArgumentParser(description="Exam Timetabling GA")
-    p.add_argument("instance", nargs="?", default="/Users/ciarangray/Desktop/4th year/AI/A1/test_case1.txt", help="instance file (default: /Users/ciarangray/Desktop/4th year/AI/A1/test_case1.txt)")
-    return p.parse_args()
-
-
-def initialize_population(pop_size: int, num_exams: int, num_timeslots: int, seed: int = None) -> List[List[int]]:
+def initialize_population(pop_size: int, num_exams: int, num_timeslots: int) -> List[List[int]]:
     """Create a population of random solutions.
-      seed: optional RNG seed for reproducibility
 
     Returns:
       A list of `pop_size` individuals. Each individual is a list of length
@@ -70,7 +62,7 @@ def initialize_population(pop_size: int, num_exams: int, num_timeslots: int, see
     if num_timeslots < 1:
         raise ValueError("num_timeslots must be >= 1")
 
-    rng = random.Random(seed)
+    rng = random.Random()
     population: List[List[int]] = []
     for _ in range(pop_size):
         individual = [rng.randrange(num_timeslots) for _ in range(num_exams)]
@@ -100,7 +92,7 @@ def evaluate_fitness(solution: List[int], student_exams: List[List[int]], weight
         try:
             slots = [solution[e] for e in exams]
         except IndexError:
-            raise ValueError("Student exam index out of range of solution length")
+            raise ValueError("Student exam index out of range of number of timeslots")
 
         # hard violations: duplicate slots
         hard_violations += len(slots) - len(set(slots))
@@ -115,7 +107,7 @@ def evaluate_fitness(solution: List[int], student_exams: List[List[int]], weight
     return -cost
 
 
-def select_parents(population: List[List[int]], fitnesses: List[int], rng: random.Random, tournament_size: int = 3) -> Tuple[List[int], List[int]]:
+def select_parents(population: List[List[int]], fitnesses: List[int], rng: random.Random, tournament_size: int) -> Tuple[List[int], List[int]]:
     """Select two parents using tournament selection.
 
     Picks `tournament_size` competitors for each parent and returns deep copies of
@@ -136,6 +128,29 @@ def select_parents(population: List[List[int]], fitnesses: List[int], rng: rando
     parent2 = pick_one()
     return parent1, parent2
 
+def single_point_crossover(parent1: List[int], parent2: List[int], rng: random.Random) -> Tuple[List[int], List[int]]:
+    #Single-point crossover. Returns two children (copies)
+    n = len(parent1)
+    if n <= 1 or parent1 == parent2:
+        return parent1.copy(), parent2.copy()
+    point = rng.randrange(1, n)  # crossover point in [1, n-1]
+    child1 = parent1[:point] + parent2[point:]
+    child2 = parent2[:point] + parent1[point:]
+    return child1, child2
+
+def mutate(individual: List[int], num_timeslots: int, mutation_rate: float, rng: random.Random) -> None:
+    #In-place per-gene mutation. Each gene mutates with mutation_rate probability
+    if num_timeslots <= 1 or mutation_rate <= 0.0:
+        return
+    for i in range(len(individual)):
+        if rng.random() < mutation_rate:
+            old = individual[i]
+            # pick a new timeslot different from current when possible
+            new = rng.randrange(num_timeslots - 1)
+            # map to value in [0, num_timeslots-1] skipping `old`
+            if new >= old:
+                new += 1
+            individual[i] = new
 
 def run_ga(num_exams: int,
            num_timeslots: int,
@@ -144,21 +159,13 @@ def run_ga(num_exams: int,
            generations: int,
            tournament_size: int,
            elitism: bool,
-           seed: int) -> Tuple[List[int], int, List[int]]:
-    """Basic GA main loop (first iteration):
-
-    - Initializes a random population
-    - Evaluates fitness
-    - Repeatedly builds new populations by selecting parents and copying them
-      into the new population (no crossover or mutation implemented in this
-      first iteration).
-
-    Returns: (best_solution, best_fitness, fitness_history)
-    """
-    rng = random.Random(seed)
+           crossover_rate: float,
+           mutation_rate: float) -> Tuple[List[int], int, List[int]]:
+    # GA main loop with single-point crossover and per-gene mutation.
+    rng = random.Random()
 
     # initialize
-    population = initialize_population(pop_size, num_exams, num_timeslots, seed=seed)
+    population = initialize_population(pop_size, num_exams, num_timeslots)
     fitnesses = [evaluate_fitness(ind, student_exams, 100) for ind in population]
 
     best_idx = max(range(len(population)), key=lambda i: fitnesses[i])
@@ -170,16 +177,27 @@ def run_ga(num_exams: int,
     for gen in range(1, generations + 1):
         new_population: List[List[int]] = []
 
-        # keep elite
+        # keep best solution if elitism flag is set to true
         if elitism:
             new_population.append(best_solution.copy())
 
-        # fill the rest by selecting parents and copying one of them
+        # fill the rest by selecting parents, applying crossover and mutation
         while len(new_population) < pop_size:
             p1, p2 = select_parents(population, fitnesses, rng, tournament_size=tournament_size)
-            #no crossover or mtation, just pik a parent
-            chosen = p1 if rng.random() < 0.5 else p2
-            new_population.append(chosen.copy())
+
+            if rng.random() < crossover_rate:
+                c1, c2 = single_point_crossover(p1, p2, rng)
+            else:
+                # no crossover: children are copies of parents
+                c1, c2 = p1.copy(), p2.copy()
+
+            # mutate children in-place
+            mutate(c1, num_timeslots, mutation_rate, rng)
+            if len(new_population) < pop_size:
+                new_population.append(c1)
+            if len(new_population) < pop_size:
+                mutate(c2, num_timeslots, mutation_rate, rng)
+                new_population.append(c2)
 
         # replace population and evaluate
         population = new_population
@@ -197,18 +215,65 @@ def run_ga(num_exams: int,
         history.append(best_fitness)
 
         print(f"Gen {gen}: best_fitness={best_fitness}")
+        print("Number of unique individuals= ", len(set(tuple(ind) for ind in population)))
 
     return best_solution, best_fitness, history
 
-
 if __name__ == "__main__":
-    args = parse_args()
+    instance = "/Users/ciarangray/Desktop/4th year/AI/A1/small-2.txt"   # path to instance file
+
+    # Genetic algorithm parameters
+    pop = 200            # population size
+    gens = 500           # number of generations
+    cx = 0.9            # crossover rate
+    mut = 0.3           # mutation rate (per gene)
+    tour = 3             # tournament size
+    elitism = True       # keep elite
 
     try:
-        num_exams, num_timeslots, num_students, student_exams = read_instance(args.instance)
+        num_exams, num_timeslots, num_students, student_exams = read_instance(instance)
     except Exception as e:
-        print(f"Error reading instance '{args.instance}': {e}")
+        print(f"Error reading instance '{instance}': {e}")
         sys.exit(1)
 
     print(f"Instance: exams={num_exams}, timeslots={num_timeslots}, students={num_students}")
     print(f"Parsed {len(student_exams)} student rows")
+    print(f"GA params: pop={pop}, gens={gens}, cx={cx}, mut={mut}, tour={tour}, elitism={elitism}")
+
+    # run GA
+    best_solution, best_fitness, history = run_ga(
+        num_exams=num_exams,
+        num_timeslots=num_timeslots,
+        student_exams=student_exams,
+        pop_size=pop,
+        generations=gens,
+        tournament_size=tour,
+        elitism=elitism,
+        crossover_rate=cx,
+        mutation_rate=mut,
+    )
+
+    print("\n--- GA Result ---")
+    print(f"Best fitness: {best_fitness}")
+    print(f"Best solution (exam -> slot): {best_solution}")
+    final_cost = -evaluate_fitness(best_solution, student_exams, 100)
+    print(f"Final cost (100*hard + soft) = {final_cost}")
+
+    # diagnostics
+    def compute_violations(solution, student_exams):
+        hard = 0
+        soft = 0
+        for exams in student_exams:
+            if not exams:
+                continue
+            slots = [solution[e] for e in exams]
+            hard += len(slots) - len(set(slots))
+            ds = sorted(set(slots))
+            for i in range(len(ds) - 1):
+                if ds[i + 1] == ds[i] + 1:
+                    soft += 1
+        return hard, soft
+
+    hard_v, soft_p = compute_violations(best_solution, student_exams)
+    print(f"Hard violations: {hard_v}, Soft penalty: {soft_p}")
+    print("Fitness history (last 10):", history[-10:])
