@@ -285,7 +285,7 @@ if __name__ == "__main__":
     pop = 200            # population size
     gens = 500           # number of generations
     cx = 0.9            # crossover rate
-    mut = 0.3           # mutation rate (per gene)
+    mut = 0.1           # mutation rate (per gene)
     tour = 3             # tournament size
     elitism = True       # keep elite
 
@@ -318,7 +318,7 @@ if __name__ == "__main__":
     final_cost = -evaluate_fitness(best_solution, student_exams, 100)
     print(f"Final cost (100*hard + soft) = {final_cost}")
 
-    # diagnostics
+
     def compute_violations(solution, student_exams):
         """
         Computes the number of hard violations and soft penalties for a given solution.
