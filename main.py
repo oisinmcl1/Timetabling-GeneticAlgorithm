@@ -279,7 +279,9 @@ def run_ga(num_exams: int,
     return best_solution, best_fitness, history
 
 if __name__ == "__main__":
-    instance = "small-2.txt"   # path to instance file
+    # instance = "test_case1.txt"
+    instance = "small-2.txt"
+    # instance = "medium-1.txt"
 
     # Genetic algorithm parameters
     pop = 200            # population size
