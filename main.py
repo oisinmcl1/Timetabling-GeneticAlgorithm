@@ -414,5 +414,4 @@ if __name__ == "__main__":
     print("Fitness history (last 10):", history[-10:])
 
     # Plot the results
-    plot_fitness_history(history, f"GA Fitness Evolution - {instance}")
     plot_detailed_analysis(history, best_solution, instance)
