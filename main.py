@@ -9,6 +9,7 @@ import random
 from typing import List, Tuple
 import matplotlib.pyplot as plt
 from collections import Counter
+import statistics
 
 
 def read_instance(filename: str) -> Tuple[int, int, int, List[List[int]]]:
@@ -265,7 +266,7 @@ def run_ga(num_exams: int,
         fitnesses = [evaluate_fitness(ind, student_exams, 100) for ind in population]
 
         # update best
-        gen_best_idx = max(range(len(population)), key=lambda i: fitnesses[i])
+        gen_best_idx = max(range(len(population)), key=lambda i, fits=fitnesses: fits[i])
         gen_best_fitness = fitnesses[gen_best_idx]
         gen_best_solution = population[gen_best_idx].copy()
 
@@ -279,6 +280,240 @@ def run_ga(num_exams: int,
         print("Number of unique individuals= ", len(set(tuple(ind) for ind in population)))
 
     return best_solution, best_fitness, history
+
+
+def multiple_runs_analysis(instance_files: List[str],
+                         num_runs: int = 10,
+                         pop_size: int = 200,
+                         generations: int = 500,
+                         tournament_size: int = 3,
+                         elitism: bool = True,
+                         crossover_rate: float = 0.9,
+                         mutation_rate: float = 0.1) -> dict:
+    """
+    Performs multiple runs of the genetic algorithm on different instances and computes summary statistics.
+
+    :param instance_files: List of instance file names to test
+    :param num_runs: Number of independent runs to perform for each instance
+    :param pop_size: Population size for GA
+    :param generations: Number of generations for GA
+    :param tournament_size: Tournament size for selection
+    :param elitism: Whether to use elitism
+    :param crossover_rate: Crossover probability
+    :param mutation_rate: Mutation probability per gene
+    """
+    print(f"Running consistency analysis with {num_runs} runs per instance...")
+    print(f"GA Parameters: pop={pop_size}, gens={generations}, cx={crossover_rate}, mut={mutation_rate}")
+    print("=" * 80)
+
+    all_results = {}
+
+    for instance in instance_files:
+        print(f"\nAnalyzing instance: {instance}")
+        print("-" * 40)
+
+        try:
+            num_exams, num_timeslots, num_students, student_exams = read_instance(instance)
+            print(f"Instance details: exams={num_exams}, timeslots={num_timeslots}, students={num_students}")
+        except Exception as e:
+            print(f"Error reading instance '{instance}': {e}")
+            continue
+
+        # Store results for this instance
+        fitness_results = []
+        cost_results = []
+        hard_violations_results = []
+        soft_penalties_results = []
+
+        print(f"Running {num_runs} independent trials...")
+
+        for run in range(num_runs):
+            print(f"  Run {run + 1}/{num_runs}...", end=" ")
+
+            # Run GA with different random seed each time
+            random.seed(run * 42)  # Different seed for each run
+
+            best_solution, best_fitness, _ = run_ga(
+                num_exams=num_exams,
+                num_timeslots=num_timeslots,
+                student_exams=student_exams,
+                pop_size=pop_size,
+                generations=generations,
+                tournament_size=tournament_size,
+                elitism=elitism,
+                crossover_rate=crossover_rate,
+                mutation_rate=mutation_rate,
+            )
+
+            # Compute detailed metrics
+            final_cost = -best_fitness
+            hard_violations, soft_penalties = compute_violations(best_solution, student_exams)
+
+            # Store results
+            fitness_results.append(best_fitness)
+            cost_results.append(final_cost)
+            hard_violations_results.append(hard_violations)
+            soft_penalties_results.append(soft_penalties)
+
+            print(f"Fitness: {best_fitness}, Cost: {final_cost}")
+
+        # Compute statistics
+        fitness_stats = {
+            'mean': statistics.mean(fitness_results),
+            'best': max(fitness_results),
+            'worst': min(fitness_results),
+            'std': statistics.stdev(fitness_results) if len(fitness_results) > 1 else 0.0,
+            'median': statistics.median(fitness_results)
+        }
+
+        cost_stats = {
+            'mean': statistics.mean(cost_results),
+            'best': min(cost_results),  # Lower cost is better
+            'worst': max(cost_results),
+            'std': statistics.stdev(cost_results) if len(cost_results) > 1 else 0.0,
+            'median': statistics.median(cost_results)
+        }
+
+        hard_stats = {
+            'mean': statistics.mean(hard_violations_results),
+            'best': min(hard_violations_results),
+            'worst': max(hard_violations_results),
+            'std': statistics.stdev(hard_violations_results) if len(hard_violations_results) > 1 else 0.0,
+            'median': statistics.median(hard_violations_results)
+        }
+
+        soft_stats = {
+            'mean': statistics.mean(soft_penalties_results),
+            'best': min(soft_penalties_results),
+            'worst': max(soft_penalties_results),
+            'std': statistics.stdev(soft_penalties_results) if len(soft_penalties_results) > 1 else 0.0,
+            'median': statistics.median(soft_penalties_results)
+        }
+
+        # Store all results
+        all_results[instance] = {
+            'fitness': fitness_stats,
+            'cost': cost_stats,
+            'hard_violations': hard_stats,
+            'soft_penalties': soft_stats,
+            'raw_data': {
+                'fitness': fitness_results,
+                'cost': cost_results,
+                'hard_violations': hard_violations_results,
+                'soft_penalties': soft_penalties_results
+            }
+        }
+
+        # Print summary for this instance
+        print(f"\nSummary Statistics for {instance}:")
+        print(f"  Fitness    - Mean: {fitness_stats['mean']:.2f}, Best: {fitness_stats['best']}, Worst: {fitness_stats['worst']}, Std: {fitness_stats['std']:.2f}")
+        print(f"  Total Cost - Mean: {cost_stats['mean']:.2f}, Best: {cost_stats['best']}, Worst: {cost_stats['worst']}, Std: {cost_stats['std']:.2f}")
+        print(f"  Hard Viol. - Mean: {hard_stats['mean']:.2f}, Best: {hard_stats['best']}, Worst: {hard_stats['worst']}, Std: {hard_stats['std']:.2f}")
+        print(f"  Soft Pen.  - Mean: {soft_stats['mean']:.2f}, Best: {soft_stats['best']}, Worst: {soft_stats['worst']}, Std: {soft_stats['std']:.2f}")
+
+    # Print overall comparison
+    print("\n" + "=" * 80)
+    print("OVERALL COMPARISON ACROSS INSTANCES")
+    print("=" * 80)
+
+    # Create comparison table
+    print(f"{'Instance':<15} {'Fitness (Best)':<15} {'Cost (Best)':<12} {'Hard Viol.':<12} {'Std Dev':<10}")
+    print("-" * 70)
+
+    for instance, results in all_results.items():
+        print(f"{instance:<15} {results['fitness']['best']:<15} {results['cost']['best']:<12} {results['hard_violations']['best']:<12} {results['fitness']['std']:<10.2f}")
+
+    # Plot comparison charts
+    plot_multiple_runs_comparison(all_results)
+
+    return all_results
+
+
+def compute_violations(solution: List[int], student_exams: List[List[int]]) -> Tuple[int, int]:
+    """
+    Computes the number of hard violations and soft penalties for a given solution.
+    :param solution: A list of length `num_exams` where each value is the assigned timeslot for that exam.
+    :param student_exams: A list of lists, where each inner list contains the exam indices that a student is taking.
+    :return: A tuple (hard_violations, soft_penalty)
+    """
+    hard = 0
+    soft = 0
+    for exams in student_exams:
+        if not exams:
+            continue
+        slots = [solution[e] for e in exams]
+        hard += len(slots) - len(set(slots))
+        ds = sorted(set(slots))
+        for i in range(len(ds) - 1):
+            if ds[i + 1] == ds[i] + 1:
+                soft += 1
+    return hard, soft
+
+
+def plot_multiple_runs_comparison(results_dict: dict) -> None:
+    """
+    Creates comparison plots for multiple runs analysis.
+    :param results_dict: Dictionary containing results from multiple_runs_analysis
+    """
+    instances = list(results_dict.keys())
+
+    # Create subplots for different metrics
+    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    fig.suptitle('Multiple Runs Analysis - Consistency Comparison', fontsize=16)
+
+    metrics = ['fitness', 'cost', 'hard_violations', 'soft_penalties']
+    titles = ['Fitness Distribution', 'Cost Distribution', 'Hard Violations Distribution', 'Soft Penalties Distribution']
+
+    for i, (metric, title) in enumerate(zip(metrics, titles)):
+        ax = axes[i // 2, i % 2]
+
+        # Box plot for each instance
+        data_for_plot = []
+        labels = []
+
+        for instance in instances:
+            data_for_plot.append(results_dict[instance]['raw_data'][metric])
+            labels.append(instance.replace('.txt', ''))
+
+        box_plot = ax.boxplot(data_for_plot, tick_labels=labels, patch_artist=True)
+
+        # Color the boxes
+        colors = ['blue', 'green', 'red']
+        for patch, color in zip(box_plot['boxes'], colors[:len(instances)]):
+            patch.set_facecolor(color)
+
+        ax.set_title(title)
+        ax.set_ylabel(metric.replace('_', ' ').title())
+        ax.grid(True, alpha=0.3)
+
+        # Add mean markers
+        for j, instance in enumerate(instances):
+            mean_val = results_dict[instance][metric]['mean']
+            ax.plot(j + 1, mean_val, markersize=8, label='Mean' if i == 0 and j == 0 else "")
+
+    # Add legend to the first subplot
+    axes[0, 0].legend()
+
+    plt.tight_layout()
+    plt.show()
+
+    # Create a separate convergence plot showing fitness evolution for best runs
+    plt.figure(figsize=(12, 8))
+
+    for instance in instances:
+        # For demonstration, we would need to store fitness histories from each run
+        # This is a simplified version showing the concept
+        plt.plot(range(10), [results_dict[instance]['fitness']['best']] * 10,
+                label=f"{instance.replace('.txt', '')} (Best: {results_dict[instance]['fitness']['best']})",
+                linewidth=2)
+
+    plt.title('Best Fitness Achieved by Instance')
+    plt.xlabel('Generation (Illustrative)')
+    plt.ylabel('Fitness')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.show()
 
 
 def plot_fitness_history(history: List[int], title: str = "Genetic Algorithm Fitness Evolution") -> None:
@@ -347,9 +582,7 @@ def plot_detailed_analysis(history: List[int],
 
 
 if __name__ == "__main__":
-    # instance = "test_case1.txt"
-    instance = "small-2.txt"
-    # instance = "medium-1.txt"
+    instance_files = ["test_case1.txt", "small-2.txt", "medium-1.txt"]
 
     # Genetic algorithm parameters
     pop = 200            # population size
@@ -359,60 +592,63 @@ if __name__ == "__main__":
     tour = 3             # tournament size
     elitism = True       # keep elite
 
+    # print("Multiple Runs Consistency Analysis")
+    # print("Testing algorithm consistency across multiple runs and instances")
+    # print()
+
+    # Run consistency analysis on all three instances
+    # all_results = multiple_runs_analysis(
+    #     instance_files=instance_files,
+    #     num_runs=3,  # 3 runs per instance for demonstration
+    #     pop_size=pop,
+    #     generations=gens,
+    #     tournament_size=tour,
+    #     elitism=elitism,
+    #     crossover_rate=cx,
+    #     mutation_rate=mut
+    # )
+
+    print("\nIndividual Instance Analysis")
+    print("Running detailed analysis on individual instances...")
+
+    # Run detailed analysis on one instance for demonstration
+    # instance = "test_case1.txt"
+    instance = "small-2.txt"
+    # instance = "medium-1.txt"
+
     try:
         num_exams, num_timeslots, num_students, student_exams = read_instance(instance)
     except Exception as e:
         print(f"Error reading instance '{instance}': {e}")
         sys.exit(1)
 
+    print(f"\nDetailed analysis for: {instance}")
     print(f"Instance: exams={num_exams}, timeslots={num_timeslots}, students={num_students}")
     print(f"Parsed {len(student_exams)} student rows")
-    print(f"GA params: pop={pop}, gens={gens}, cx={cx}, mut={mut}, tour={tour}, elitism={elitism}")
+    print(f"GA params: pop={pop}, gens={gens*5}, cx={cx}, mut={mut}, tour={tour}, elitism={elitism}")
 
-    # run GA
+    # run GA with more generations for detailed analysis
     best_solution, best_fitness, history = run_ga(
         num_exams=num_exams,
         num_timeslots=num_timeslots,
         student_exams=student_exams,
         pop_size=pop,
-        generations=gens,
+        generations=gens*5,  # More generations for detailed analysis
         tournament_size=tour,
         elitism=elitism,
         crossover_rate=cx,
         mutation_rate=mut,
     )
 
-    print("\n--- GA Result ---")
+    print("\n--- Detailed GA Result ---")
     print(f"Best fitness: {best_fitness}")
     print(f"Best solution (exam -> slot): {best_solution}")
     final_cost = -evaluate_fitness(best_solution, student_exams, 100)
     print(f"Final cost (100*hard + soft) = {final_cost}")
 
-
-    def compute_violations(solution, student_exams):
-        """
-        Computes the number of hard violations and soft penalties for a given solution.
-        :param solution: A list of length `num_exams` where each value is the assigned timeslot for that exam.
-        :param student_exams: A list of lists, where each inner list contains the exam indices that a student is taking.
-        :return: A tuple (hard_violations, soft_penalty)
-        """
-        hard = 0
-        soft = 0
-        for exams in student_exams:
-            if not exams:
-                continue
-            slots = [solution[e] for e in exams]
-            hard += len(slots) - len(set(slots))
-            ds = sorted(set(slots))
-            for i in range(len(ds) - 1):
-                if ds[i + 1] == ds[i] + 1:
-                    soft += 1
-        return hard, soft
-
     hard_v, soft_p = compute_violations(best_solution, student_exams)
     print(f"Hard violations: {hard_v}, Soft penalty: {soft_p}")
     print("Fitness history (last 10):", history[-10:])
 
-    # Plot the results
-    plot_fitness_history(history, f"GA Fitness Evolution - {instance}")
+    # Plot the detailed results
     plot_detailed_analysis(history, best_solution, instance)
