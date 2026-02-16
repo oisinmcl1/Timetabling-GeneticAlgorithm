@@ -592,62 +592,63 @@ if __name__ == "__main__":
     tour = 3             # tournament size
     elitism = True       # keep elite
 
-    print("Multiple Runs Consistency Analysis")
-    print("Testing algorithm consistency across multiple runs and instances")
-    print()
+    # print("Multiple Runs Consistency Analysis")
+    # print("Testing algorithm consistency across multiple runs and instances")
+    # print()
 
     # Run consistency analysis on all three instances
-    all_results = multiple_runs_analysis(
-        instance_files=instance_files,
-        num_runs=3,  # 3 runs per instance for demonstration
-        pop_size=pop,
-        generations=gens,
-        tournament_size=tour,
-        elitism=elitism,
-        crossover_rate=cx,
-        mutation_rate=mut
-    )
-
-    # print("\n=== Individual Instance Analysis ===")
-    # print("Running detailed analysis on individual instances...")
-
-    # # Run detailed analysis on one instance for demonstration
-    # instance = "small-2.txt"
-
-    # try:
-    #     num_exams, num_timeslots, num_students, student_exams = read_instance(instance)
-    # except Exception as e:
-    #     print(f"Error reading instance '{instance}': {e}")
-    #     sys.exit(1)
-
-    # print(f"\nDetailed analysis for: {instance}")
-    # print(f"Instance: exams={num_exams}, timeslots={num_timeslots}, students={num_students}")
-    # print(f"Parsed {len(student_exams)} student rows")
-    # print(f"GA params: pop={pop}, gens={gens*5}, cx={cx}, mut={mut}, tour={tour}, elitism={elitism}")
-
-    # # run GA with more generations for detailed analysis
-    # best_solution, best_fitness, history = run_ga(
-    #     num_exams=num_exams,
-    #     num_timeslots=num_timeslots,
-    #     student_exams=student_exams,
+    # all_results = multiple_runs_analysis(
+    #     instance_files=instance_files,
+    #     num_runs=3,  # 3 runs per instance for demonstration
     #     pop_size=pop,
-    #     generations=gens*5,  # More generations for detailed analysis
+    #     generations=gens,
     #     tournament_size=tour,
     #     elitism=elitism,
     #     crossover_rate=cx,
-    #     mutation_rate=mut,
+    #     mutation_rate=mut
     # )
 
-    # print("\n--- Detailed GA Result ---")
-    # print(f"Best fitness: {best_fitness}")
-    # print(f"Best solution (exam -> slot): {best_solution}")
-    # final_cost = -evaluate_fitness(best_solution, student_exams, 100)
-    # print(f"Final cost (100*hard + soft) = {final_cost}")
+    print("\nIndividual Instance Analysis")
+    print("Running detailed analysis on individual instances...")
 
-    # hard_v, soft_p = compute_violations(best_solution, student_exams)
-    # print(f"Hard violations: {hard_v}, Soft penalty: {soft_p}")
-    # print("Fitness history (last 10):", history[-10:])
+    # Run detailed analysis on one instance for demonstration
+    # instance = "test_case1.txt"
+    instance = "small-2.txt"
+    # instance = "medium-1.txt"
 
-    # # Plot the detailed results
-    # plot_detailed_analysis(history, best_solution, instance)
+    try:
+        num_exams, num_timeslots, num_students, student_exams = read_instance(instance)
+    except Exception as e:
+        print(f"Error reading instance '{instance}': {e}")
+        sys.exit(1)
 
+    print(f"\nDetailed analysis for: {instance}")
+    print(f"Instance: exams={num_exams}, timeslots={num_timeslots}, students={num_students}")
+    print(f"Parsed {len(student_exams)} student rows")
+    print(f"GA params: pop={pop}, gens={gens*5}, cx={cx}, mut={mut}, tour={tour}, elitism={elitism}")
+
+    # run GA with more generations for detailed analysis
+    best_solution, best_fitness, history = run_ga(
+        num_exams=num_exams,
+        num_timeslots=num_timeslots,
+        student_exams=student_exams,
+        pop_size=pop,
+        generations=gens*5,  # More generations for detailed analysis
+        tournament_size=tour,
+        elitism=elitism,
+        crossover_rate=cx,
+        mutation_rate=mut,
+    )
+
+    print("\n--- Detailed GA Result ---")
+    print(f"Best fitness: {best_fitness}")
+    print(f"Best solution (exam -> slot): {best_solution}")
+    final_cost = -evaluate_fitness(best_solution, student_exams, 100)
+    print(f"Final cost (100*hard + soft) = {final_cost}")
+
+    hard_v, soft_p = compute_violations(best_solution, student_exams)
+    print(f"Hard violations: {hard_v}, Soft penalty: {soft_p}")
+    print("Fitness history (last 10):", history[-10:])
+
+    # Plot the detailed results
+    plot_detailed_analysis(history, best_solution, instance)
