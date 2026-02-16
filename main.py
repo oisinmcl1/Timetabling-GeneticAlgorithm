@@ -21,42 +21,15 @@ def read_instance(filename: str) -> Tuple[int, int, int, List[List[int]]]:
     student_exams: List[List[int]] = []
 
     with open(filename, "r", encoding="utf-8") as f:
-        header_line = None
+        # Read header
+        header_line = f.readline().strip()
+        num_exams, num_timeslots, num_students = map(int, header_line.split())
 
-        for raw in f:
-            line = raw.strip()
-            if not line or line.startswith("#"):
-                continue
-            header_line = line
-            break
-
-        if header_line is None:
-            raise ValueError("File is empty or contains only comments/blank lines")
-
-        parts = header_line.split()
-
-        if len(parts) < 3:
-            raise ValueError("Header must contain at least three integers: n k m")
-
-        try:
-            num_exams, num_timeslots, num_students = map(int, parts[:3])
-        except ValueError as e:
-            raise ValueError("Header values must be integers: n k m") from e
-
-        # read the student rows
-        for raw in f:
-            line = raw.strip()
-
-            if not line or line.startswith("#"):
-                continue
-            vals = line.split()
-
-            try:
-                ints = [int(v) for v in vals]
-            except ValueError:
-                raise ValueError(f"Student row contains non-integer values: {line}")
-
-            exams = [idx for idx, val in enumerate(ints[:num_exams]) if val == 1]
+        # Read student rows
+        for line in f:
+            vals = line.strip().split()
+            ints = [int(v) for v in vals]
+            exams = [idx for idx, val in enumerate(ints) if val == 1]
             student_exams.append(exams)
 
     return num_exams, num_timeslots, num_students, student_exams
@@ -585,16 +558,16 @@ if __name__ == "__main__":
     instance_files = ["test_case1.txt", "small-2.txt", "medium-1.txt"]
 
     # Genetic algorithm parameters
-    pop = 200            # population size
+    pop = 400            # population size
     gens = 500           # number of generations
-    cx = 0.9            # crossover rate
-    mut = 0.1           # mutation rate (per gene)
-    tour = 3             # tournament size
+    cx = 0.7            # crossover rate
+    mut = 0.05           # mutation rate (per gene)
+    tour = 4             # tournament size
     elitism = True       # keep elite
 
-    # print("Multiple Runs Consistency Analysis")
-    # print("Testing algorithm consistency across multiple runs and instances")
-    # print()
+    print("Multiple Runs Consistency Analysis")
+    print("Testing algorithm consistency across multiple runs and instances")
+    print()
 
     # Run consistency analysis on all three instances
     # all_results = multiple_runs_analysis(
@@ -633,7 +606,7 @@ if __name__ == "__main__":
         num_timeslots=num_timeslots,
         student_exams=student_exams,
         pop_size=pop,
-        generations=gens*5,  # More generations for detailed analysis
+        generations=gens,
         tournament_size=tour,
         elitism=elitism,
         crossover_rate=cx,
